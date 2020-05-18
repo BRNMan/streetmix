@@ -9,9 +9,13 @@ import { useSelector, useDispatch } from 'react-redux'
 import { FormattedMessage, useIntl } from 'react-intl'
 import Dialog from './Dialog'
 import SegmentAnalytics from './Analytics/SegmentAnalytics'
+import SegmentCapacity from './Analytics/SegmentCapacity'
 import { FormatNumber } from '../util/formatting'
 import { trackEvent } from '../app/event_tracking'
-import { updateStreetAnalytics } from '../store/actions/street'
+import {
+  updateStreetAnalytics,
+  updateStreetSegmentCapacity
+} from '../store/actions/street'
 
 import Terms from '../app/Terms'
 import {
@@ -24,9 +28,15 @@ import './AnalyticsDialog.scss'
 const addSegmentData = (segments) => {
   // return segments.map(getSegmentCapacity)
   return segments.map((item) => {
+    console.log()
+    let finalCapacity = getSegmentCapacity(item).capacity
+    if (item.capacity) {
+      finalCapacity = item.capacity
+    }
     return {
       type: item.type,
-      capacity: getSegmentCapacity(item).capacity,
+      customCapacity: item.capacity,
+      capacity: finalCapacity,
       segment: item
     }
   })
@@ -75,6 +85,9 @@ function AnalyticsDialog (props) {
     setVisible(!isVisible)
     dispatch(updateStreetAnalytics(!isVisible))
   }
+  const updateSegmentCapacity = (index, value) => {
+    dispatch(updateStreetSegmentCapacity(index, value))
+  }
 
   const intl = useIntl()
   const segmentData = addSegmentData(street.segments).sort(avgCapacityAscending)
@@ -111,6 +124,7 @@ function AnalyticsDialog (props) {
   }
 
   const rolledUp = rollUpCategories(segmentData)
+  const rolledUpSorted = addSegmentData(street.segments)
   const chartMax =
     Math.max(...rolledUp.map((item) => item.capacity.potential)) + 1000
 
@@ -174,6 +188,22 @@ function AnalyticsDialog (props) {
               </p>
             </div>
             <div className="dialog-actions">
+              <label>Edit segment capacity</label>
+              <div>
+                {rolledUpSorted.map((item, index) => {
+                  const updateCapacity = (value) => {
+                    updateSegmentCapacity(index, value)
+                  }
+                  return (
+                    <SegmentCapacity
+                      index={index}
+                      key={item.id}
+                      updateCapacity={updateCapacity}
+                      {...item}
+                    />
+                  )
+                })}
+              </div>
               <label>
                 <input
                   type="checkbox"

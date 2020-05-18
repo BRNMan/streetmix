@@ -27,6 +27,7 @@ import {
   removeSegment,
   clearSegments,
   changeSegmentWidth,
+  changeSegmentProperties,
   updateStreetData,
   updateAnalytics,
   saveStreetId,
@@ -73,6 +74,13 @@ export const clearSegmentsAction = () => {
   return async (dispatch, getState) => {
     await dispatch(clearSegments())
     await dispatch(segmentsChanged())
+  }
+}
+export const updateStreetSegmentCapacity = (index, value) => {
+  return async (dispatch, getState) => {
+    console.log('what is value', { value })
+    await dispatch(changeSegmentProperties(index, { capacity: value }))
+    saveStreetToServerIfNecessary()
   }
 }
 export const updateStreetAnalytics = (isVisible) => {

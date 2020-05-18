@@ -342,7 +342,6 @@ export function saveStreetToServerIfNecessary () {
 
   const street = store.getState().street
   var currentData = trimStreetData(street)
-
   if (JSON.stringify(currentData) !== JSON.stringify(_lastStreet)) {
     if (street.editCount !== null) {
       store.dispatch(updateEditCount(street.editCount + 1))
@@ -382,6 +381,7 @@ export function trimStreetData (street, saveSegmentId = true) {
     rightBuildingVariant: street.rightBuildingVariant,
     segments: street.segments.map((origSegment) => {
       const segment = {
+        capacity: origSegment.capacity,
         type: origSegment.type,
         variantString: origSegment.variantString,
         width: origSegment.width,

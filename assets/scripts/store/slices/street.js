@@ -128,6 +128,11 @@ const streetSlice = createSlice({
     changeSegmentProperties: {
       reducer (state, action) {
         const { index, properties } = action.payload
+        console.log('updating capacity??', {
+          state,
+          action,
+          seg: state.segments[index]
+        })
         Object.assign(state.segments[index], properties)
       },
       prepare (index, properties) {

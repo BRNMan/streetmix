@@ -1,8 +1,8 @@
+/* eslint-disable react/prop-types */
 /* global L */
-/* eslint-disable */
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
-import { FormattedMessage, useIntl } from 'react-intl'
+import { useIntl } from 'react-intl'
 import { Map, TileLayer, ZoomControl, Marker } from 'react-leaflet'
 // todo: re-enable sharedstreets
 // sharedstreets functionality is disabled until it stops installing an old
@@ -19,7 +19,7 @@ import { setMapState } from '../store/slices/map'
 import {
   addLocation,
   clearLocation,
-  saveStreetName,
+  saveStreetName
 } from '../store/slices/street'
 import './GeotagDialog.scss'
 
@@ -38,7 +38,7 @@ const MAP_LOCATION_ZOOM = 12
 const DEFAULT_MAP_ZOOM = 2
 const DEFAULT_MAP_LOCATION = {
   lat: 10.45,
-  lng: -10.78,
+  lng: -10.78
 }
 
 // Override icon paths in stock Leaflet's stylesheet
@@ -46,7 +46,7 @@ delete L.Icon.Default.prototype._getIconUrl
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: '/images/marker-icon-2x.png',
   iconUrl: '/images/marker-icon.png',
-  shadowUrl: '/images/marker-shadow.png',
+  shadowUrl: '/images/marker-shadow.png'
 })
 
 /**
@@ -55,7 +55,7 @@ and LocationPopup components as well as a map to display the coordinates on
 It handles setting, displaying, and clearing location information assocaited with a 'street'
  */
 
-function getInitialState(props) {
+function getInitialState (props) {
   // Determine initial map center, and what to display
   let mapCenter, zoom, markerLocation, label
 
@@ -76,7 +76,7 @@ function getInitialState(props) {
   } else if (props.userLocation) {
     mapCenter = {
       lat: props.userLocation.latitude,
-      lng: props.userLocation.longitude,
+      lng: props.userLocation.longitude
     }
     zoom = MAP_LOCATION_ZOOM
     // As a last resort, show an overview of the world.
@@ -89,11 +89,11 @@ function getInitialState(props) {
     mapCenter,
     zoom,
     markerLocation,
-    label,
+    label
   }
 }
 
-function GeotagDialog() {
+function GeotagDialog () {
   /* TODO: decide whether to have this be individual vs a reduce function
   see the original conditional logic for the way some of these values are initialy set
   the way they are set together feels like a code smell, but i also couldn't quite
@@ -105,7 +105,7 @@ function GeotagDialog() {
     street: useSelector((state) => state.street),
     markerLocation: useSelector((state) => state.map.markerLocation),
     addressInformation: useSelector((state) => state.map.addressInformation),
-    userLocation: useSelector((state) => state.user.geolocation.data),
+    userLocation: useSelector((state) => state.user.geolocation.data)
   }
   const dpi = useSelector((state) => state.system.devicePixelRatio || 1.0)
   const dispatch = useDispatch()
@@ -137,7 +137,7 @@ function GeotagDialog() {
 
     const latlng = {
       lat: event.latlng.lat,
-      lng: event.latlng.lng,
+      lng: event.latlng.lng
     }
 
     // this is in the context of a a map click, we don't want to switch up
@@ -154,7 +154,7 @@ function GeotagDialog() {
     reverseGeocode(latlng).then((res) => {
       const latlng = {
         lat: res.features[0].geometry.coordinates[1],
-        lng: res.features[0].geometry.coordinates[0],
+        lng: res.features[0].geometry.coordinates[0]
       }
 
       setMapCenter(latlng)
@@ -166,7 +166,7 @@ function GeotagDialog() {
       dispatch(
         setMapState({
           markerLocation: latlng,
-          addressInformation: res.features[0].properties,
+          addressInformation: res.features[0].properties
         })
       )
     })
@@ -184,7 +184,7 @@ function GeotagDialog() {
       dispatch(
         setMapState({
           markerLocation: latlng,
-          addressInformation: res.features[0].properties,
+          addressInformation: res.features[0].properties
         })
       )
     })
@@ -213,10 +213,10 @@ function GeotagDialog() {
         region: addressInformation.region,
         locality: addressInformation.locality,
         neighbourhood: addressInformation.neighbourhood,
-        street: addressInformation.street,
+        street: addressInformation.street
       },
       geometryId: null,
-      intersectionId: null,
+      intersectionId: null
     }
 
     trackEvent(
@@ -252,7 +252,7 @@ function GeotagDialog() {
   const setSearchResults = (point, label) => {
     const latlng = {
       lat: point[0],
-      lng: point[1],
+      lng: point[1]
     }
 
     setZoom(MAP_LOCATION_ZOOM)
@@ -314,11 +314,11 @@ function GeotagDialog() {
             <ZoomControl
               zoomInTitle={intl.formatMessage({
                 id: 'dialogs.geotag.zoom-in',
-                defaultMessage: 'Zoom in',
+                defaultMessage: 'Zoom in'
               })}
               zoomOutTitle={intl.formatMessage({
                 id: 'dialogs.geotag.zoom-out',
-                defaultMessage: 'Zoom out',
+                defaultMessage: 'Zoom out'
               })}
             />
 

@@ -11,6 +11,7 @@ import { Map, TileLayer, ZoomControl, Marker } from 'react-leaflet'
 import Dialog from './Dialog'
 import { PELIAS_HOST_NAME, PELIAS_API_KEY } from '../app/config'
 import { trackEvent } from '../app/event_tracking'
+import ErrorBanner from './Geotag/ErrorBanner'
 import GeoSearch from './Geotag/GeoSearch'
 import LocationPopup from './Geotag/LocationPopup'
 import { isOwnedByCurrentUser } from '../streets/owner'
@@ -292,22 +293,15 @@ function GeotagDialog() {
     <Dialog>
       {(closeDialog) => (
         <div className="geotag-dialog">
-          {!geocodeAvailable && (
-            <div className="geotag-error-banner">
-              <FormattedMessage
-                id="dialogs.geotag.geotag-unavailable"
-                defaultMessage="Geocoding services are currently unavailable. You can view the map,
-                    but you won’t be able to change this street’s location."
-              />
-            </div>
-          )}
-          {geocodeAvailable && (
+          {geocodeAvailable ? (
             <div className="geotag-input-container">
               <GeoSearch
                 setSearchResults={setSearchResults}
                 focus={mapCenter}
               />
             </div>
+          ) : (
+            <ErrorBanner />
           )}
           <Map
             center={mapCenter}

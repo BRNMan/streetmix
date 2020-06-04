@@ -1,9 +1,8 @@
 /* global L */
 /* eslint-disable */
 import React, { useState, useEffect } from 'react'
-import PropTypes from 'prop-types'
-import { connect } from 'react-redux'
-import { FormattedMessage, injectIntl } from 'react-intl'
+import { useSelector, useDispatch } from 'react-redux'
+import { FormattedMessage, useIntl } from 'react-intl'
 import { Map, TileLayer, ZoomControl, Marker } from 'react-leaflet'
 // todo: re-enable sharedstreets
 // sharedstreets functionality is disabled until it stops installing an old
@@ -55,36 +54,45 @@ and LocationPopup components as well as a map to display the coordinates on
 It handles setting, displaying, and clearing location information assocaited with a 'street'
  */
 
-GeotagDialog.propTypes = {
-  // Provided by react-intl higher-order component
-  intl: PropTypes.object.isRequired,
+function getInitialState(props) {
+  // Determine initial map center, and what to display
+  let mapCenter, zoom, markerLocation, label
 
-  // Provided by Redux store
-  street: PropTypes.object,
-  markerLocation: PropTypes.shape({
-    lat: PropTypes.number,
-    lng: PropTypes.number,
-  }),
-  addressInformation: PropTypes.object,
-  userLocation: PropTypes.shape({
-    latitude: PropTypes.number,
-    longitude: PropTypes.number,
-  }),
-  dpi: PropTypes.number,
+  // If street has a location object, use its position and data
+  if (props.street.location) {
+    mapCenter = props.street.location.latlng
+    zoom = MAP_LOCATION_ZOOM
+    markerLocation = props.street.location.latlng
+    label = props.street.location.label
+    // If we've previously saved marker position, re-use that information
+  } else if (props.markerLocation) {
+    mapCenter = props.markerLocation
+    zoom = MAP_LOCATION_ZOOM
+    markerLocation = props.markerLocation
+    label = props.addressInformation.label
+    // If there's no prior location data, use the user's location, if available
+    // In this case, display the map view, but no marker or popup
+  } else if (props.userLocation) {
+    mapCenter = {
+      lat: props.userLocation.latitude,
+      lng: props.userLocation.longitude,
+    }
+    zoom = MAP_LOCATION_ZOOM
+    // As a last resort, show an overview of the world.
+  } else {
+    mapCenter = DEFAULT_MAP_LOCATION
+    zoom = DEFAULT_MAP_ZOOM
+  }
 
-  // Provided by Redux action dispatchers
-  setMapState: PropTypes.func,
-  addLocation: PropTypes.func,
-  clearLocation: PropTypes.func,
-  saveStreetName: PropTypes.func,
+  return {
+    mapCenter,
+    zoom,
+    markerLocation,
+    label,
+  }
 }
 
-// no idea if this is correct syntax
-GeotagDialog.defaultProps = {
-  dpi: 1.0,
-}
-
-function GeotagDialog(props) {
+function GeotagDialog() {
   /* TODO: decide whether to have this be individual vs a reduce function
   see the original conditional logic for the way some of these values are initialy set
   the way they are set together feels like a code smell, but i also couldn't quite
@@ -92,13 +100,30 @@ function GeotagDialog(props) {
   */
   // so each of these could be fed by a function, but is that a good pattern, and where would those live?
   // alot of the params were just being passed from above consts and not used much elsewhere, maybe we should just set them here?
-  const [mapCenter, setMapCenter] = useState('initalCenter')
-  const [zoom, setZoom] = useState('initialZoom')
-  const [renderPopup, setRenderPopup] = useState('initialRenderPopup')
-  const [markerLocation, setMarkerLocation] = useState('initalMarkerLocation')
-  const [label] = useState('')
-  const [bbox] = useState(null)
-  const [geocodeAvailable] = useState(true)
+  const props = {
+    street: useSelector((state) => state.street),
+    markerLocation: useSelector((state) => state.map.markerLocation),
+    addressInformation: useSelector((state) => state.map.addressInformation),
+    userLocation: useSelector((state) => state.user.geolocation.data),
+  }
+  const dpi = useSelector((state) => state.system.devicePixelRatio || 1.0)
+  const dispatch = useDispatch()
+  const initialState = getInitialState(props)
+  const [mapCenter, setMapCenter] = useState(initialState.mapCenter)
+  const [zoom, setZoom] = useState(initialState.zoom)
+  const [markerLocation, setMarkerLocation] = useState(
+    initialState.markerLocation
+  )
+  const [label, setLabel] = useState(initialState.label)
+  const [renderPopup, setRenderPopup] = useState(!!initialState.markerLocation)
+  const intl = useIntl()
+
+  const geocodeAvailable = !!PELIAS_API_KEY
+
+  // `dpi` is a bad name for what is supposed to be referring to the devicePixelRatio
+  // value. A devicePixelRatio higher than 1 (e.g. Retina or 4k monitors) will load
+  // higher resolution map tiles.
+  const tileUrl = dpi > 1 ? MAP_TILES_2X : MAP_TILES
 
   const handleMapClick = (event) => {
     // my instinct is that this function should only reverse gecocode
@@ -131,19 +156,18 @@ function GeotagDialog(props) {
         lng: res.features[0].geometry.coordinates[0],
       }
 
-      setState({
-        mapCenter: latlng,
-        zoom: zoom,
-        renderPopup: true,
-        markerLocation: latlng,
-        label: res.features[0].properties.label,
-        bbox: res.bbox || null,
-      })
+      setMapCenter(latlng)
+      setZoom(zoom)
+      setRenderPopup(true)
+      setMarkerLocation(latlng)
+      setLabel(res.features[0].properties.label)
 
-      props.setMapState({
-        markerLocation: latlng,
-        addressInformation: res.features[0].properties,
-      })
+      dispatch(
+        setMapState({
+          markerLocation: latlng,
+          addressInformation: res.features[0].properties,
+        })
+      )
     })
   }
 
@@ -152,17 +176,16 @@ function GeotagDialog(props) {
     // not 100% confident about what to do with 'this' here,
     // especially with these nested functions
     reverseGeocode(latlng).then((res) => {
-      this.setState({
-        renderPopup: true,
-        markerLocation: latlng,
-        label: res.features[0].properties.label,
-        bbox: res.bbox || null,
-      })
+      setRenderPopup(true)
+      setMarkerLocation(latlng)
+      setLabel(res.features[0].properties.label)
 
-      props.setMapState({
-        markerLocation: latlng,
-        addressInformation: res.features[0].properties,
-      })
+      dispatch(
+        setMapState({
+          markerLocation: latlng,
+          addressInformation: res.features[0].properties,
+        })
+      )
     })
   }
 
@@ -171,9 +194,7 @@ function GeotagDialog(props) {
   or do we need to make a 'toggle' function and call it here (which seems extra)
   */
   const handleMarkerDragStart = (event) => {
-    this.setState({
-      renderPopup: false,
-    })
+    setRenderPopup(true)
   }
 
   // questions about to handle this properly in a functional component
@@ -181,8 +202,6 @@ function GeotagDialog(props) {
   // since thats where the button is but yah
   const handleConfirmLocation = (event) => {
     const { markerLocation, addressInformation } = props
-    // const { bbox } = this.state
-    // const point = [markerLocation.lng, markerLocation.lat]
 
     const location = {
       latlng: markerLocation,
@@ -197,14 +216,7 @@ function GeotagDialog(props) {
       },
       geometryId: null,
       intersectionId: null,
-      // geometryId: sharedstreets.geometryId([point]) || null,
-      // intersectionId: sharedstreets.intersectionId(point) || null
     }
-
-    // if (bbox) {
-    //   const line = [bbox.slice(0, 2), bbox.slice(2, 4)]
-    //   location.geometryId = sharedstreets.geometryId(line)
-    // }
 
     trackEvent(
       'Interaction',
@@ -214,8 +226,9 @@ function GeotagDialog(props) {
       true
     )
 
-    props.addLocation(location)
-    props.saveStreetName(location.hierarchy.street, false)
+    // TODO: batch dispatches so we don't trigger multiple re-renders in the same update
+    dispatch(addLocation(location))
+    dispatch(saveStreetName(location.hierarchy.street, false))
   }
 
   const handleClearLocation = (event) => {
@@ -226,7 +239,7 @@ function GeotagDialog(props) {
       null,
       true
     )
-    props.clearLocation()
+    dispatch(clearLocation())
   }
 
   const reverseGeocode = (latlng) => {
@@ -235,20 +248,17 @@ function GeotagDialog(props) {
     return window.fetch(url).then((response) => response.json())
   }
 
-  const setSearchResults = (point, label, bbox) => {
+  const setSearchResults = (point, label) => {
     const latlng = {
       lat: point[0],
       lng: point[1],
     }
 
-    this.setState({
-      zoom: MAP_LOCATION_ZOOM,
-      mapCenter: latlng,
-      renderPopup: true,
-      markerLocation: latlng,
-      label: label,
-      bbox: bbox || null,
-    })
+    setZoom(MAP_LOCATION_ZOOM)
+    setMapCenter(latlng)
+    setRenderPopup(true)
+    setMarkerLocation(latlng)
+    setLabel(label)
   }
 
   /**
@@ -270,8 +280,6 @@ function GeotagDialog(props) {
    */
   const canClearLocation = () => {
     const { location } = props.street
-    // how to refrence this in hooks? also this.state seems vauge in the first place
-    const { markerLocation } = this.state
 
     return (
       location &&
@@ -280,11 +288,6 @@ function GeotagDialog(props) {
     )
   }
 
-  // ok so we gotta get rid of render, but what about this tile URL? and wats
-  // this dpi thing
-  // render () {
-  //
-  const tileUrl = props.dpi > 1 ? MAP_TILES_2X : MAP_TILES
   return (
     <Dialog>
       {(closeDialog) => (
@@ -315,11 +318,11 @@ function GeotagDialog(props) {
           >
             <TileLayer attribution={MAP_ATTRIBUTION} url={tileUrl} />
             <ZoomControl
-              zoomInTitle={props.intl.formatMessage({
+              zoomInTitle={intl.formatMessage({
                 id: 'dialogs.geotag.zoom-in',
                 defaultMessage: 'Zoom in',
               })}
-              zoomOutTitle={props.intl.formatMessage({
+              zoomOutTitle={intl.formatMessage({
                 id: 'dialogs.geotag.zoom-out',
                 defaultMessage: 'Zoom out',
               })}
@@ -355,28 +358,6 @@ function GeotagDialog(props) {
       )}
     </Dialog>
   )
-  // }
 }
 
-function mapStateToProps(state) {
-  return {
-    street: state.street,
-    markerLocation: state.map.markerLocation,
-    addressInformation: state.map.addressInformation,
-    userLocation: state.user.geolocation.data,
-    dpi: state.system.devicePixelRatio,
-  }
-}
-
-// does this still need to be done in a functional component?
-const mapDispatchToProps = {
-  setMapState,
-  addLocation,
-  clearLocation,
-  saveStreetName,
-}
-
-export default connect(
-  mapStateToProps,
-  mapDispatchToProps
-)(injectIntl(GeotagDialog))
+export default GeotagDialog

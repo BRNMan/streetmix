@@ -1,5 +1,6 @@
 /* global L */
-import React from 'react'
+/* eslint-disable */
+import React, { useState, useEffect } from 'react'
 import PropTypes from 'prop-types'
 import { connect } from 'react-redux'
 import { FormattedMessage, injectIntl } from 'react-intl'
@@ -18,7 +19,7 @@ import { setMapState } from '../store/slices/map'
 import {
   addLocation,
   clearLocation,
-  saveStreetName
+  saveStreetName,
 } from '../store/slices/street'
 import './GeotagDialog.scss'
 
@@ -37,7 +38,7 @@ const MAP_LOCATION_ZOOM = 12
 const DEFAULT_MAP_ZOOM = 2
 const DEFAULT_MAP_LOCATION = {
   lat: 10.45,
-  lng: -10.78
+  lng: -10.78,
 }
 
 // Override icon paths in stock Leaflet's stylesheet
@@ -45,7 +46,7 @@ delete L.Icon.Default.prototype._getIconUrl
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: '/images/marker-icon-2x.png',
   iconUrl: '/images/marker-icon.png',
-  shadowUrl: '/images/marker-shadow.png'
+  shadowUrl: '/images/marker-shadow.png',
 })
 
 /**
@@ -54,85 +55,63 @@ and LocationPopup components as well as a map to display the coordinates on
 It handles setting, displaying, and clearing location information assocaited with a 'street'
  */
 
-class GeotagDialog extends React.Component {
-  static propTypes = {
-    // Provided by react-intl higher-order component
-    intl: PropTypes.object.isRequired,
+GeotagDialog.propTypes = {
+  // Provided by react-intl higher-order component
+  intl: PropTypes.object.isRequired,
 
-    // Provided by Redux store
-    street: PropTypes.object,
-    markerLocation: PropTypes.shape({
-      lat: PropTypes.number,
-      lng: PropTypes.number
-    }),
-    addressInformation: PropTypes.object,
-    userLocation: PropTypes.shape({
-      latitude: PropTypes.number,
-      longitude: PropTypes.number
-    }),
-    dpi: PropTypes.number,
+  // Provided by Redux store
+  street: PropTypes.object,
+  markerLocation: PropTypes.shape({
+    lat: PropTypes.number,
+    lng: PropTypes.number,
+  }),
+  addressInformation: PropTypes.object,
+  userLocation: PropTypes.shape({
+    latitude: PropTypes.number,
+    longitude: PropTypes.number,
+  }),
+  dpi: PropTypes.number,
 
-    // Provided by Redux action dispatchers
-    setMapState: PropTypes.func,
-    addLocation: PropTypes.func,
-    clearLocation: PropTypes.func,
-    saveStreetName: PropTypes.func
-  }
+  // Provided by Redux action dispatchers
+  setMapState: PropTypes.func,
+  addLocation: PropTypes.func,
+  clearLocation: PropTypes.func,
+  saveStreetName: PropTypes.func,
+}
 
-  static defaultProps = {
-    dpi: 1.0
-  }
+// no idea if this is correct syntax
+GeotagDialog.defaultProps = {
+  dpi: 1.0,
+}
 
-  constructor (props) {
-    super(props)
+function GeotagDialog(props) {
+  /* TODO: decide whether to have this be individual vs a reduce function
+  see the original conditional logic for the way some of these values are initialy set
+  the way they are set together feels like a code smell, but i also couldn't quite
+  come with a smart way to refactor it on the spot
+  */
+  // so each of these could be fed by a function, but is that a good pattern, and where would those live?
+  // alot of the params were just being passed from above consts and not used much elsewhere, maybe we should just set them here?
+  const [mapCenter, setMapCenter] = useState('initalCenter')
+  const [zoom, setZoom] = useState('initialZoom')
+  const [renderPopup, setRenderPopup] = useState('initialRenderPopup')
+  const [markerLocation, setMarkerLocation] = useState('initalMarkerLocation')
+  const [label] = useState('')
+  const [bbox] = useState(null)
+  const [geocodeAvailable] = useState(true)
 
-    // Determine initial map center, and what to display
-    let mapCenter, zoom, markerLocation, label
+  const handleMapClick = (event) => {
+    // my instinct is that this function should only reverse gecocode
+    // so then if the 'active' latlng is updated, then the other state should
+    // be updated accordingly
+    // TODO: for later, lets talk about whether this actually best for UX vs other patterns
 
-    // If street has a location object, use its position and data
-    if (props.street.location) {
-      mapCenter = props.street.location.latlng
-      zoom = MAP_LOCATION_ZOOM
-      markerLocation = props.street.location.latlng
-      label = props.street.location.label
-      // If we've previously saved marker position, re-use that information
-    } else if (props.markerLocation) {
-      mapCenter = props.markerLocation
-      zoom = MAP_LOCATION_ZOOM
-      markerLocation = props.markerLocation
-      label = props.addressInformation.label
-      // If there's no prior location data, use the user's location, if available
-      // In this case, display the map view, but no marker or popup
-    } else if (props.userLocation) {
-      mapCenter = {
-        lat: props.userLocation.latitude,
-        lng: props.userLocation.longitude
-      }
-      zoom = MAP_LOCATION_ZOOM
-      // As a last resort, show an overview of the world.
-    } else {
-      mapCenter = DEFAULT_MAP_LOCATION
-      zoom = DEFAULT_MAP_ZOOM
-    }
-
-    this.state = {
-      mapCenter: mapCenter,
-      zoom: zoom,
-      renderPopup: !!markerLocation,
-      markerLocation: markerLocation,
-      label: label,
-      bbox: null,
-      geocodeAvailable: !!PELIAS_API_KEY
-    }
-  }
-
-  handleMapClick = (event) => {
     // Bail if geocoding is not available.
-    if (!this.state.geocodeAvailable) return
+    if (!geocodeAvailable) return
 
     const latlng = {
       lat: event.latlng.lat,
-      lng: event.latlng.lng
+      lng: event.latlng.lng,
     }
 
     // this is in the context of a a map click, we don't want to switch up
@@ -140,56 +119,71 @@ class GeotagDialog extends React.Component {
     // (or at least im assuming this based on the code ;-))
     const zoom = event.target.getZoom()
 
-    this.reverseGeocode(latlng).then((res) => {
+    /*
+    we reset state + reverse geocode on click
+    we also do the same thing on drag end
+    thats some pretty obvious copypasta to
+    clean up if/when we add to geocoding/map functionality
+    */
+    reverseGeocode(latlng).then((res) => {
       const latlng = {
         lat: res.features[0].geometry.coordinates[1],
-        lng: res.features[0].geometry.coordinates[0]
+        lng: res.features[0].geometry.coordinates[0],
       }
 
-      this.setState({
+      setState({
         mapCenter: latlng,
         zoom: zoom,
         renderPopup: true,
         markerLocation: latlng,
         label: res.features[0].properties.label,
-        bbox: res.bbox || null
+        bbox: res.bbox || null,
       })
 
-      this.props.setMapState({
+      props.setMapState({
         markerLocation: latlng,
-        addressInformation: res.features[0].properties
+        addressInformation: res.features[0].properties,
       })
     })
   }
 
-  handleMarkerDragEnd = (event) => {
+  const handleMarkerDragEnd = (event) => {
     const latlng = event.target.getLatLng()
-
-    this.reverseGeocode(latlng).then((res) => {
+    // not 100% confident about what to do with 'this' here,
+    // especially with these nested functions
+    reverseGeocode(latlng).then((res) => {
       this.setState({
         renderPopup: true,
         markerLocation: latlng,
         label: res.features[0].properties.label,
-        bbox: res.bbox || null
+        bbox: res.bbox || null,
       })
 
-      this.props.setMapState({
+      props.setMapState({
         markerLocation: latlng,
-        addressInformation: res.features[0].properties
+        addressInformation: res.features[0].properties,
       })
     })
   }
 
-  handleMarkerDragStart = (event) => {
+  /*
+  so here can we just set renderPopup to false?
+  or do we need to make a 'toggle' function and call it here (which seems extra)
+  */
+  const handleMarkerDragStart = (event) => {
     this.setState({
-      renderPopup: false
+      renderPopup: false,
     })
   }
 
-  handleConfirmLocation = (event) => {
-    const { markerLocation, addressInformation } = this.props
+  // questions about to handle this properly in a functional component
+  // also; I'd expect the confirm location stuff to be part of location popup
+  // since thats where the button is but yah
+  const handleConfirmLocation = (event) => {
+    const { markerLocation, addressInformation } = props
     // const { bbox } = this.state
     // const point = [markerLocation.lng, markerLocation.lat]
+
     const location = {
       latlng: markerLocation,
       wofId: addressInformation.id,
@@ -199,10 +193,10 @@ class GeotagDialog extends React.Component {
         region: addressInformation.region,
         locality: addressInformation.locality,
         neighbourhood: addressInformation.neighbourhood,
-        street: addressInformation.street
+        street: addressInformation.street,
       },
       geometryId: null,
-      intersectionId: null
+      intersectionId: null,
       // geometryId: sharedstreets.geometryId([point]) || null,
       // intersectionId: sharedstreets.intersectionId(point) || null
     }
@@ -220,11 +214,11 @@ class GeotagDialog extends React.Component {
       true
     )
 
-    this.props.addLocation(location)
-    this.props.saveStreetName(location.hierarchy.street, false)
+    props.addLocation(location)
+    props.saveStreetName(location.hierarchy.street, false)
   }
 
-  handleClearLocation = (event) => {
+  const handleClearLocation = (event) => {
     trackEvent(
       'Interaction',
       'Geotag dialog: cleared existing location',
@@ -232,19 +226,19 @@ class GeotagDialog extends React.Component {
       null,
       true
     )
-    this.props.clearLocation()
+    props.clearLocation()
   }
 
-  reverseGeocode = (latlng) => {
+  const reverseGeocode = (latlng) => {
     const url = `${REVERSE_GEOCODE_ENDPOINT}&point.lat=${latlng.lat}&point.lon=${latlng.lng}`
 
     return window.fetch(url).then((response) => response.json())
   }
 
-  setSearchResults = (point, label, bbox) => {
+  const setSearchResults = (point, label, bbox) => {
     const latlng = {
       lat: point[0],
-      lng: point[1]
+      lng: point[1],
     }
 
     this.setState({
@@ -253,15 +247,15 @@ class GeotagDialog extends React.Component {
       renderPopup: true,
       markerLocation: latlng,
       label: label,
-      bbox: bbox || null
+      bbox: bbox || null,
     })
   }
 
   /**
    * Determines if the street location can be saved or edited.
    */
-  canEditLocation = () => {
-    const { street } = this.props
+  const canEditLocation = () => {
+    const { street } = props
     // The street is editable if either of the following conditions are true:
     //  - If there is a street owner, and it's equal to the current user
     //  - If there is no street owner
@@ -274,8 +268,9 @@ class GeotagDialog extends React.Component {
    * if that location is equal to the current marker position.
    * This does not check for street ownership. See `canEditLocation()` for that.
    */
-  canClearLocation = () => {
-    const { location } = this.props.street
+  const canClearLocation = () => {
+    const { location } = props.street
+    // how to refrence this in hooks? also this.state seems vauge in the first place
     const { markerLocation } = this.state
 
     return (
@@ -285,101 +280,100 @@ class GeotagDialog extends React.Component {
     )
   }
 
-  render () {
-    const tileUrl = this.props.dpi > 1 ? MAP_TILES_2X : MAP_TILES
-
-    return (
-      <Dialog>
-        {(closeDialog) => (
-          <div className="geotag-dialog">
-            {!this.state.geocodeAvailable && (
-              <div className="geotag-error-banner">
-                <FormattedMessage
-                  id="dialogs.geotag.geotag-unavailable"
-                  defaultMessage="Geocoding services are currently unavailable. You can view the map,
+  // ok so we gotta get rid of render, but what about this tile URL? and wats
+  // this dpi thing
+  // render () {
+  //
+  const tileUrl = props.dpi > 1 ? MAP_TILES_2X : MAP_TILES
+  return (
+    <Dialog>
+      {(closeDialog) => (
+        <div className="geotag-dialog">
+          {!geocodeAvailable && (
+            <div className="geotag-error-banner">
+              <FormattedMessage
+                id="dialogs.geotag.geotag-unavailable"
+                defaultMessage="Geocoding services are currently unavailable. You can view the map,
                     but you won’t be able to change this street’s location."
-                />
-              </div>
-            )}
-            {this.state.geocodeAvailable && (
-              <div className="geotag-input-container">
-                <GeoSearch
-                  setSearchResults={this.setSearchResults}
-                  focus={this.state.mapCenter}
-                />
-              </div>
-            )}
-            <Map
-              center={this.state.mapCenter}
-              zoomControl={false}
-              zoom={this.state.zoom}
-              onClick={this.handleMapClick}
-              useFlyTo={true}
-            >
-              <TileLayer attribution={MAP_ATTRIBUTION} url={tileUrl} />
-              <ZoomControl
-                zoomInTitle={this.props.intl.formatMessage({
-                  id: 'dialogs.geotag.zoom-in',
-                  defaultMessage: 'Zoom in'
-                })}
-                zoomOutTitle={this.props.intl.formatMessage({
-                  id: 'dialogs.geotag.zoom-out',
-                  defaultMessage: 'Zoom out'
-                })}
               />
+            </div>
+          )}
+          {geocodeAvailable && (
+            <div className="geotag-input-container">
+              <GeoSearch
+                setSearchResults={setSearchResults}
+                focus={mapCenter}
+              />
+            </div>
+          )}
+          <Map
+            center={mapCenter}
+            zoomControl={false}
+            zoom={zoom}
+            onClick={handleMapClick}
+            useFlyTo={true}
+          >
+            <TileLayer attribution={MAP_ATTRIBUTION} url={tileUrl} />
+            <ZoomControl
+              zoomInTitle={props.intl.formatMessage({
+                id: 'dialogs.geotag.zoom-in',
+                defaultMessage: 'Zoom in',
+              })}
+              zoomOutTitle={props.intl.formatMessage({
+                id: 'dialogs.geotag.zoom-out',
+                defaultMessage: 'Zoom out',
+              })}
+            />
 
-              {this.state.renderPopup && (
-                <LocationPopup
-                  position={this.state.markerLocation}
-                  label={this.state.label}
-                  isEditable={
-                    this.state.geocodeAvailable && this.canEditLocation()
-                  }
-                  isClearable={
-                    this.state.geocodeAvailable && this.canClearLocation()
-                  }
-                  handleConfirm={(e) => {
-                    this.handleConfirmLocation(e)
-                    closeDialog()
-                  }}
-                  handleClear={(e) => {
-                    this.handleClearLocation(e)
-                    closeDialog()
-                  }}
-                />
-              )}
+            {renderPopup && (
+              <LocationPopup
+                position={markerLocation}
+                label={label}
+                isEditable={geocodeAvailable && canEditLocation()}
+                isClearable={geocodeAvailable && canClearLocation()}
+                handleConfirm={(e) => {
+                  handleConfirmLocation(e)
+                  closeDialog()
+                }}
+                handleClear={(e) => {
+                  handleClearLocation(e)
+                  closeDialog()
+                }}
+              />
+            )}
 
-              {this.state.markerLocation && (
-                <Marker
-                  position={this.state.markerLocation}
-                  onDragEnd={this.handleMarkerDragEnd}
-                  onDragStart={this.handleMarkerDragStart}
-                  draggable={this.state.geocodeAvailable}
-                />
-              )}
-            </Map>
-          </div>
-        )}
-      </Dialog>
-    )
-  }
+            {markerLocation && (
+              <Marker
+                position={markerLocation}
+                onDragEnd={handleMarkerDragEnd}
+                onDragStart={handleMarkerDragStart}
+                draggable={geocodeAvailable}
+              />
+            )}
+          </Map>
+        </div>
+      )}
+    </Dialog>
+  )
+  // }
 }
 
-function mapStateToProps (state) {
+function mapStateToProps(state) {
   return {
     street: state.street,
     markerLocation: state.map.markerLocation,
     addressInformation: state.map.addressInformation,
     userLocation: state.user.geolocation.data,
-    dpi: state.system.devicePixelRatio
+    dpi: state.system.devicePixelRatio,
   }
 }
 
+// does this still need to be done in a functional component?
 const mapDispatchToProps = {
   setMapState,
   addLocation,
   clearLocation,
-  saveStreetName
+  saveStreetName,
 }
 
 export default connect(

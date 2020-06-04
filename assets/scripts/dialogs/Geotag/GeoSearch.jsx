@@ -28,6 +28,7 @@ function GeoSearch ({ setSearchResults, focus = { lat: 0, lng: 0 } }) {
   function handleChange (selection) {
     if (!selection) return
 
+    // why does geocode search dispatch to the store here?
     dispatch(
       setMapState({
         addressInformation: selection.properties,

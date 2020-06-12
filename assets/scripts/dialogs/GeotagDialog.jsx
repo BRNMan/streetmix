@@ -132,9 +132,6 @@ function GeotagDialog () {
     // be updated accordingly
     // TODO: for later, lets talk about whether this actually best for UX vs other patterns
 
-    // Bail if geocoding is not available.
-    if (!geocodeAvailable) return
-
     const latlng = {
       lat: event.latlng.lat,
       lng: event.latlng.lng
@@ -195,12 +192,10 @@ function GeotagDialog () {
   or do we need to make a 'toggle' function and call it here (which seems extra)
   */
   const handleMarkerDragStart = (event) => {
-    setRenderPopup(true)
+    setRenderPopup(false)
   }
 
-  // questions about to handle this properly in a functional component
-  // also; I'd expect the confirm location stuff to be part of location popup
-  // since thats where the button is but yah
+  // TODO: I'd expect the confirm location stuff to be part of location popup
   const handleConfirmLocation = (event) => {
     const { markerLocation, addressInformation } = props
 
@@ -307,7 +302,7 @@ function GeotagDialog () {
             center={mapCenter}
             zoomControl={false}
             zoom={zoom}
-            onClick={handleMapClick}
+            onClick={geocodeAvailable ? handleMapClick : null}
             useFlyTo={true}
           >
             <TileLayer attribution={MAP_ATTRIBUTION} url={tileUrl} />

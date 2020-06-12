@@ -29,6 +29,7 @@ function GeoSearch ({ setSearchResults, focus = { lat: 0, lng: 0 } }) {
     if (!selection) return
 
     // why does geocode search dispatch to the store here?
+    // should this be here or in parent component dialog?
     dispatch(
       setMapState({
         addressInformation: selection.properties,
@@ -41,7 +42,7 @@ function GeoSearch ({ setSearchResults, focus = { lat: 0, lng: 0 } }) {
 
     setSearchResults(
       selection.geometry.coordinates.reverse(),
-      selection.properties.label,
+      selection.properties,
       selection.bbox
     )
     inputEl.current.focus()

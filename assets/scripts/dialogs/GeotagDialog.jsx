@@ -107,7 +107,7 @@ function GeotagDialog () {
     addressInformation: useSelector((state) => state.map.addressInformation),
     userLocation: useSelector((state) => state.user.geolocation.data)
   }
-  const dpi = useSelector((state) => state.system.devicePixelRatio || 1.0)
+
   const dispatch = useDispatch()
   const initialState = getInitialState(props)
   const [mapCenter, setMapCenter] = useState(initialState.mapCenter)
@@ -124,22 +124,20 @@ function GeotagDialog () {
   // `dpi` is a bad name for what is supposed to be referring to the devicePixelRatio
   // value. A devicePixelRatio higher than 1 (e.g. Retina or 4k monitors) will load
   // higher resolution map tiles.
+  const dpi = useSelector((state) => state.system.devicePixelRatio || 1.0)
   const tileUrl = dpi > 1 ? MAP_TILES_2X : MAP_TILES
 
   const handleMapClick = (event) => {
-    // my instinct is that this function should only reverse gecocode
-    // so then if the 'active' latlng is updated, then the other state should
-    // be updated accordingly
     // TODO: for later, lets talk about whether this actually best for UX vs other patterns
 
+    // get the new latlng of the clicked position
     const latlng = {
       lat: event.latlng.lat,
       lng: event.latlng.lng
     }
 
-    // this is in the context of a a map click, we don't want to switch up
+    // this is in the context of a a map click or drag, we don't want to switch up
     // the zoom level on the user
-    // (or at least im assuming this based on the code ;-))
     const zoom = event.target.getZoom()
 
     /*
@@ -153,37 +151,8 @@ function GeotagDialog () {
         lat: res.features[0].geometry.coordinates[1],
         lng: res.features[0].geometry.coordinates[0]
       }
-
-      setMapCenter(latlng)
       setZoom(zoom)
-      setRenderPopup(true)
-      setMarkerLocation(latlng)
-      setLabel(res.features[0].properties.label)
-
-      dispatch(
-        setMapState({
-          markerLocation: latlng,
-          addressInformation: res.features[0].properties
-        })
-      )
-    })
-  }
-
-  const handleMarkerDragEnd = (event) => {
-    const latlng = event.target.getLatLng()
-    // not 100% confident about what to do with 'this' here,
-    // especially with these nested functions
-    reverseGeocode(latlng).then((res) => {
-      setRenderPopup(true)
-      setMarkerLocation(latlng)
-      setLabel(res.features[0].properties.label)
-
-      dispatch(
-        setMapState({
-          markerLocation: latlng,
-          addressInformation: res.features[0].properties
-        })
-      )
+      updateMap(latlng, res.features[0].properties, res.features[0].label)
     })
   }
 
@@ -193,6 +162,20 @@ function GeotagDialog () {
   */
   const handleMarkerDragStart = (event) => {
     setRenderPopup(false)
+  }
+
+  const handleMarkerDragEnd = (event) => {
+    // method of updating coords is different here(as opposed to onClick) since we're
+    // moving a leaflet object
+    // keeping the data shape of latlng in line with how its used elsewhere
+    let latlng = event.target.getLatLng()
+    latlng = {
+      lat: latlng.lat,
+      lng: latlng.lng
+    }
+    reverseGeocode(latlng).then((res) => {
+      updateMap(latlng, res.features[0].properties, res.features[0].label)
+    })
   }
 
   // TODO: I'd expect the confirm location stuff to be part of location popup
@@ -244,17 +227,32 @@ function GeotagDialog () {
     return window.fetch(url).then((response) => response.json())
   }
 
-  const setSearchResults = (point, label) => {
+  // TODO: search dialog state dosen't sync up with map state (IMO should clear or update with label)
+  const setSearchResults = (point, locationProperties) => {
     const latlng = {
       lat: point[0],
       lng: point[1]
     }
+    updateMap(latlng, locationProperties)
+  }
 
-    setZoom(MAP_LOCATION_ZOOM)
-    setMapCenter(latlng)
+  function updateMap (latlng, locationProperties) {
+    /*
+    after the location position is updated,
+    we need to update the map UI elements
+    an update place information in the store
+    */
     setRenderPopup(true)
     setMarkerLocation(latlng)
-    setLabel(label)
+    setLabel(locationProperties.label)
+    setMapCenter(latlng)
+
+    dispatch(
+      setMapState({
+        markerLocation: latlng,
+        addressInformation: locationProperties
+      })
+    )
   }
 
   /**
@@ -348,5 +346,4 @@ function GeotagDialog () {
     </Dialog>
   )
 }
-
 export default GeotagDialog

@@ -49,12 +49,14 @@ L.Icon.Default.mergeOptions({
   shadowUrl: '/images/marker-shadow.png'
 })
 
-/**
-This Dialog uses the generic Dialog component and combines it with the GeoSearch
-and LocationPopup components as well as a map to display the coordinates on
-It handles setting, displaying, and clearing location information assocaited with a 'street'
- */
-
+/*
+  TODO: decide whether to have this be individual vs a reduce function
+  see the original conditional logic for the way some of these values are initialy set
+  the way they are set together feels like a code smell, but i also couldn't quite
+  come with a smart way to refactor it on the spot
+  */
+// so each of these could be fed by a function, but is that a good pattern, and where would those live?
+// alot of the params were just being passed from above consts and not used much elsewhere, maybe we should just set them here?
 function getInitialState (props) {
   // Determine initial map center, and what to display
   let mapCenter, zoom, markerLocation, label
@@ -93,14 +95,12 @@ function getInitialState (props) {
   }
 }
 
+/**
+This Dialog uses the generic Dialog component and combines it with the GeoSearch
+and LocationPopup components as well as a map to display the coordinates on
+It handles setting, displaying, and clearing location information assocaited with a 'street'
+ */
 function GeotagDialog () {
-  /* TODO: decide whether to have this be individual vs a reduce function
-  see the original conditional logic for the way some of these values are initialy set
-  the way they are set together feels like a code smell, but i also couldn't quite
-  come with a smart way to refactor it on the spot
-  */
-  // so each of these could be fed by a function, but is that a good pattern, and where would those live?
-  // alot of the params were just being passed from above consts and not used much elsewhere, maybe we should just set them here?
   const props = {
     street: useSelector((state) => state.street),
     markerLocation: useSelector((state) => state.map.markerLocation),
